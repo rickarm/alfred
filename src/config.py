@@ -13,5 +13,11 @@ class Settings(BaseSettings):
     things_agent_host: str = "0.0.0.0"
     things_agent_port: int = 8200
 
+    # Bot settings
+    telegram_bot_token: str = ""
+    anthropic_api_key: str = ""
+    claude_model: str = "claude-sonnet-4-20250514"
+    things_agent_base_url: str = "http://127.0.0.1:8200/api/v1"
+
 
 settings = Settings()
