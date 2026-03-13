@@ -1,0 +1,32 @@
+[project]
+name = "things-agent"
+version = "0.1.0"
+description = "FastAPI REST gateway for Things 3 via MCP"
+requires-python = ">=3.12"
+
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "httpx>=0.28",
+    "mcp>=1.5",
+    "python-dotenv>=1.0",
+    "pydantic-settings>=2.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.28",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
