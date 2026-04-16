@@ -19,5 +19,10 @@ class Settings(BaseSettings):
     claude_model: str = "claude-sonnet-4-20250514"
     things_agent_base_url: str = "http://127.0.0.1:8200/api/v1"
 
+    # Sherlock-HQ integration
+    sherlock_hq_url: str = "http://127.0.0.1:8300"
+    sherlock_dashboard_token: str = ""
+    rick_chat_id: int = 0
+
 
 settings = Settings()
