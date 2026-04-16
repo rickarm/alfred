@@ -5,8 +5,8 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from .auth import require_api_key
-from .mcp_client import call_tool
+from ..auth import require_api_key
+from ..mcp_client import call_tool
 
 router = APIRouter(prefix="/api/v1")
 

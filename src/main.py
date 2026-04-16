@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from .routes import router
+from .routes.things import router as things_router
+from .routes.alert import router as alert_router
 
 app = FastAPI(
     title="Things Agent API",
@@ -11,7 +12,8 @@ app = FastAPI(
     redoc_url=None,
 )
 
-app.include_router(router)
+app.include_router(things_router)
+app.include_router(alert_router)
 
 
 @app.exception_handler(Exception)

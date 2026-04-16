@@ -8,6 +8,7 @@ from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
 from . import agent, formatter
+from .commands.services import cmd_logs, cmd_restart, cmd_services, cmd_status
 from .config import settings
 
 logging.basicConfig(
@@ -208,6 +209,10 @@ def main() -> None:
     app.add_handler(CommandHandler("due", cmd_due))
     app.add_handler(CommandHandler("recent", cmd_recent))
     app.add_handler(CommandHandler("search", cmd_search))
+    app.add_handler(CommandHandler("services", cmd_services))
+    app.add_handler(CommandHandler("status", cmd_status))
+    app.add_handler(CommandHandler("restart", cmd_restart))
+    app.add_handler(CommandHandler("logs", cmd_logs))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     logger.info("Bot starting — polling for updates")

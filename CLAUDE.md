@@ -30,17 +30,34 @@ make errors    # Tail stderr log
 
 ```
 Telegram → FastAPI (port 8200) → Claude API → MCP Client → things-mcp (port 8100) → Things 3
+scripts/services-check.sh → POST /alert → Telegram (Rick's chat)
+/services /status /restart /logs → Sherlock-HQ (port 8300) → Telegram
 ```
 
 ```
 src/
-  main.py      # FastAPI app, lifespan, mounts routes
-  bot.py       # Telegram handler setup
-  routes.py    # REST API endpoints
-  config.py    # Env-based settings (pydantic-settings)
+  main.py           # FastAPI app, lifespan, mounts routes
+  bot.py            # Telegram handler setup
+  routes/
+    things.py       # Things 3 REST API endpoints
+    alert.py        # POST /alert (service watcher push)
+  commands/
+    services.py     # /services /status /restart /logs handlers
+  config.py         # Env-based settings (pydantic-settings)
 tests/
-  test_routes.py  # REST route tests
+  test_routes.py         # Things REST route tests
+  test_services_commands.py  # Service command handler tests
+  test_alert.py          # POST /alert endpoint tests
 ```
+
+## Telegram commands (service monitoring)
+
+All service commands only respond to `RICK_CHAT_ID`. Commands call Sherlock-HQ (`http://127.0.0.1:8300` by default).
+
+- `/services` — List all services with status icons and counts
+- `/status <name>` — Detail for one service + last 10 log lines (404 reply if unknown)
+- `/restart <name>` — Restart a service group; replies with per-member exit codes
+- `/logs <name> [N]` — Last N log lines (default 50, max 200; 404 reply if unknown)
 
 ## Environment
 
@@ -50,6 +67,9 @@ tests/
 - `TELEGRAM_BOT_TOKEN` — Telegram Bot API token
 - `ANTHROPIC_API_KEY` — Claude API key
 - `CLAUDE_MODEL` — Model ID (default: claude-sonnet-4-20250514)
+- `SHERLOCK_HQ_URL` — Sherlock-HQ base URL (default: http://127.0.0.1:8300)
+- `SHERLOCK_DASHBOARD_TOKEN` — Bearer token for Sherlock-HQ API calls (required)
+- `RICK_CHAT_ID` — Telegram chat ID for alerts and command responses (required)
 
 ## Gotchas
 
