@@ -64,8 +64,8 @@ def _log_user(update: Update) -> None:
 async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     _log_user(update)
     text = (
-        "<b>Things 3 Bot</b>\n\n"
-        "Slash commands:\n"
+        "<b>Alfred</b>\n\n"
+        "<b>Things 3</b>\n"
         "/today — Today's tasks\n"
         "/inbox — Inbox\n"
         "/upcoming — Upcoming tasks\n"
@@ -73,7 +73,13 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "/areas — All areas\n"
         "/due — Tasks with deadline today or overdue\n"
         "/recent — Added in last 3 days\n"
-        "/search &lt;term&gt; — Search tasks\n"
+        "/search &lt;term&gt; — Search tasks\n\n"
+        "<b>Services</b>\n"
+        "/services — List all services with status\n"
+        "/status &lt;name&gt; — Service detail + last 10 log lines\n"
+        "/restart &lt;name&gt; — Restart a service group\n"
+        "/logs &lt;name&gt; [N] — Last N log lines (default 50, max 200)\n\n"
+        "<b>Other</b>\n"
         "/help — This message\n\n"
         "Or just type naturally — I'll understand."
     )
