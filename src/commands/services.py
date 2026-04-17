@@ -1,5 +1,6 @@
 """Telegram command handlers for service monitoring via Sherlock-HQ."""
 
+import html
 import logging
 
 import httpx
@@ -23,6 +24,11 @@ def _is_authorized(update: Update) -> bool:
 
 def _headers() -> dict:
     return {"Authorization": f"Bearer {settings.sherlock_dashboard_token}"}
+
+
+def _esc(value) -> str:
+    """HTML-escape for Telegram messages."""
+    return html.escape(str(value)) if value is not None else ""
 
 
 async def cmd_services(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -51,12 +57,12 @@ async def cmd_services(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     rows = []
     for svc in services:
         icon = _STATUS_ICON.get(svc.get("status", "down"), "⚫")
-        name = svc.get("name", "?")
-        status = svc.get("status", "down")
-        detail = svc.get("detail", "")
+        name = _esc(svc.get("name", "?"))
+        status = _esc(svc.get("status", "down"))
+        detail = _esc(svc.get("detail", ""))
         rows.append(f"{icon} {name:<22} {status:<10} {detail}")
 
-    text = f"{header}\n\n<pre>" + "\n".join(rows) + "</pre>"
+    text = f"{_esc(header)}\n\n<pre>" + "\n".join(rows) + "</pre>"
     await update.message.reply_text(text, parse_mode="HTML")
 
 
@@ -101,15 +107,17 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     log_lines = log_data if isinstance(log_data, list) else log_data.get("lines", [])
     icon = _STATUS_ICON.get(svc.get("status", "down"), "⚫")
     parts = [
-        f"{icon} <b>{svc.get('name', name)}</b> — {svc.get('status', 'unknown')}",
-        f"Detail: {svc.get('detail', '')}",
-        f"Last OK: {svc.get('last_ok', 'never')}",
-        f"Last fail: {svc.get('last_fail', 'never')}",
-        f"Consecutive failures: {svc.get('consecutive_failures', 0)}",
+        f"{icon} <b>{_esc(svc.get('name', name))}</b> — {_esc(svc.get('status', 'unknown'))}",
+        f"Detail: {_esc(svc.get('detail', ''))}",
+        f"Last OK: {_esc(svc.get('last_ok', 'never'))}",
+        f"Last fail: {_esc(svc.get('last_fail', 'never'))}",
+        f"Consecutive failures: {_esc(svc.get('consecutive_failures', 0))}",
     ]
     if log_lines:
         parts.append("\nLast 10 log lines:")
-        parts.append("<pre>" + "\n".join(str(line) for line in log_lines[-10:]) + "</pre>")
+        parts.append(
+            "<pre>" + "\n".join(_esc(line) for line in log_lines[-10:]) + "</pre>"
+        )
 
     await update.message.reply_text("\n".join(parts), parse_mode="HTML")
 
@@ -187,8 +195,8 @@ async def cmd_logs(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text(f"No logs found for {name}")
         return
 
-    text = f"<b>Logs: {name}</b> (last {len(log_lines)} lines)\n<pre>"
-    text += "\n".join(str(line) for line in log_lines)
+    text = f"<b>Logs: {_esc(name)}</b> (last {len(log_lines)} lines)\n<pre>"
+    text += "\n".join(_esc(line) for line in log_lines)
     text += "</pre>"
     if len(text) > 4000:
         text = text[:3990] + "\n…</pre>"
