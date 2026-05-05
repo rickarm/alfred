@@ -66,7 +66,7 @@ All service commands only respond to `RICK_CHAT_ID`. Commands call Sherlock-HQ (
 - `THINGS_MCP_URL` — MCP server URL (default: http://127.0.0.1:8100)
 - `TELEGRAM_BOT_TOKEN` — Telegram Bot API token
 - `ANTHROPIC_API_KEY` — Claude API key
-- `CLAUDE_MODEL` — Model ID (default: claude-sonnet-4-20250514)
+- `CLAUDE_MODEL` — Model ID (default: claude-sonnet-4-6)
 - `SHERLOCK_HQ_URL` — Sherlock-HQ base URL (default: http://127.0.0.1:8300)
 - `SHERLOCK_DASHBOARD_TOKEN` — Bearer token for Sherlock-HQ API calls (required)
 - `RICK_CHAT_ID` — Telegram chat ID for alerts and command responses (required)
