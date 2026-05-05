@@ -9,16 +9,16 @@ stop:
 restart: stop start
 
 logs:
-	tail -f ~/Dev/things-agent/logs/stdout.log
+	tail -f ~/Dev/alfred/logs/stdout.log
 
 errors:
-	tail -f ~/Dev/things-agent/logs/stderr.log
+	tail -f ~/Dev/alfred/logs/stderr.log
 
 test:
-	cd ~/Dev/things-agent && uv run pytest -v
+	cd ~/Dev/alfred && uv run pytest -v
 
 health:
 	curl -s http://127.0.0.1:8200/api/v1/health | python3 -m json.tool
 
 dev:
-	cd ~/Dev/things-agent && uv run uvicorn src.main:app --host 127.0.0.1 --port 8200 --reload
+	cd ~/Dev/alfred && uv run uvicorn src.main:app --host 127.0.0.1 --port 8200 --reload

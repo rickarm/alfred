@@ -1,11 +1,11 @@
-# things-agent
+# alfred
 
-FastAPI REST gateway for Things 3, wrapping the `hald/things-mcp` MCP server.
+Personal assistant bot — Telegram + Claude + Things 3.
 
 ## Architecture
 
 ```
-Telegram Bot (Phase 3)
+Telegram / Alfred Bot
        ↓
 FastAPI Gateway  ← this service, port 8200
        ↓
@@ -18,10 +18,15 @@ Things 3 (macOS app)
 
 ```bash
 cp .env.example .env
-# Edit .env with your API key
+# Edit .env with your keys
 uv sync
 uv run uvicorn src.main:app --host 0.0.0.0 --port 8200
 ```
+
+## Skills
+
+- **Things** — slash commands + natural language for Things 3
+- **Checkout** — `/checkout` guided end-of-day journal (writes to `~/kb/journal/`)
 
 ## API
 

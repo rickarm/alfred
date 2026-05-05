@@ -1,7 +1,7 @@
 [project]
-name = "things-agent"
-version = "0.1.0"
-description = "FastAPI REST gateway for Things 3 via MCP"
+name = "alfred"
+version = "0.2.0"
+description = "Alfred — personal assistant bot with skill registry"
 requires-python = ">=3.12"
 
 dependencies = [

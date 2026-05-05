@@ -1,0 +1,304 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 4cb38e3..2e689be 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -58,3 +58,9 @@ tests/
+ - Uses UV package manager, not pip
+ - launchd plist is `com.rickarmbrust.things-agent` (not `alfred`)
+ - Port 8200 chosen to avoid conflict with sherlock-hq (8300) and things-mcp (8100)
++- Health endpoint is `/api/v1/health` (not `/health`) — router prefix applies
++- Two launchd services: `things-agent` (FastAPI on 8200) and `things-bot` (Telegram polling)
++- Watchdog (`com.rickarmbrust.things-mcp-watchdog`) checks health every 10 min, restarts things-mcp + things-bot on failure
++- Daily restart (`com.rickarmbrust.things-mcp-restart`) restarts both at 4 AM to prevent stale processes
++- Logs: `logs/stdout.log` / `logs/stderr.log` (API), `logs/bot-stderr.log` (bot)
++- things-mcp can lose SQLite database access after long uptime — watchdog handles this automatically
+diff --git a/src/bot.py b/src/bot.py
+index 518e572..5dc9c2a 100644
+--- a/src/bot.py
++++ b/src/bot.py
+@@ -1,14 +1,14 @@
+-"""Telegram bot — entry point and handlers."""
++"""Alfred — Telegram bot entry point and wiring."""
+ 
+ import logging
+ 
+-import httpx
+ from telegram import Update
+-from telegram.constants import ParseMode
+ from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
+ 
+-from . import agent, formatter
++from . import agent
+ from .config import settings
++from .skills import registry
++from .tg import guard, send
+ 
+ logging.basicConfig(
+     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+@@ -17,177 +17,28 @@ logging.basicConfig(
+ logger = logging.getLogger(__name__)
+ 
+ 
+-# ---------------------------------------------------------------------------
+-# Helpers
+-# ---------------------------------------------------------------------------
+-
+-
+-async def _api_get(path: str, params: dict | None = None) -> dict:
+-    headers = {"Authorization": f"Bearer {settings.things_agent_api_key}"}
+-    url = f"{settings.things_agent_base_url}{path}"
+-    async with httpx.AsyncClient(timeout=30) as client:
+-        r = await client.get(url, headers=headers, params=params or {})
+-        return r.json()
+-
+-
+-async def _send(update: Update, text: str, parse_mode: str | None = ParseMode.HTML) -> None:
+-    """Send a message, falling back to plain text if parsing fails."""
+-    try:
+-        await update.message.reply_text(text, parse_mode=parse_mode)
+-    except Exception:
+-        # Fall back to plain text
+-        try:
+-            await update.message.reply_text(text, parse_mode=None)
+-        except Exception as e:
+-            logger.error("Failed to send message: %s", e)
+-
+-
+-def _log_user(update: Update) -> None:
+-    """Log every incoming user's ID — needed to set up TELEGRAM_ALLOWED_USER_IDS."""
+-    user = update.effective_user
+-    if user:
+-        logger.info(
+-            "Incoming message from user_id=%s username=@%s name='%s %s'",
+-            user.id,
+-            user.username or "",
+-            user.first_name or "",
+-            user.last_name or "",
+-        )
+-
+-
+-# ---------------------------------------------------------------------------
+-# Command handlers
+-# ---------------------------------------------------------------------------
+-
+-
+ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+-    _log_user(update)
++    if not await guard(update):
++        return
++    skill_lines = "\n".join(registry.all_help_lines())
+     text = (
+-        "<b>Things 3 Bot</b>\n\n"
+-        "Slash commands:\n"
+-        "/today — Today's tasks\n"
+-        "/inbox — Inbox\n"
+-        "/upcoming — Upcoming tasks\n"
+-        "/projects — All projects\n"
+-        "/areas — All areas\n"
+-        "/due — Tasks with deadline today or overdue\n"
+-        "/recent — Added in last 3 days\n"
+-        "/search &lt;term&gt; — Search tasks\n"
++        "<b>Alfred</b>\n\n"
++        f"{skill_lines}\n"
+         "/help — This message\n\n"
+         "Or just type naturally — I'll understand."
+     )
+-    await _send(update, text)
+-
+-
+-async def cmd_today(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+-    _log_user(update)
+-    resp = await _api_get("/lists/today")
+-    if resp.get("ok"):
+-        text = formatter.format_task_list(resp["data"], header=f"Today ({resp['meta']['count']})")
+-    else:
+-        text = f"Error: {resp.get('error', 'unknown')}"
+-    await _send(update, text)
+-
+-
+-async def cmd_inbox(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+-    _log_user(update)
+-    resp = await _api_get("/lists/inbox")
+-    if resp.get("ok"):
+-        text = formatter.format_task_list(resp["data"], header=f"Inbox ({resp['meta']['count']})")
+-    else:
+-        text = f"Error: {resp.get('error', 'unknown')}"
+-    await _send(update, text)
+-
+-
+-async def cmd_upcoming(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+-    _log_user(update)
+-    resp = await _api_get("/lists/upcoming")
+-    if resp.get("ok"):
+-        text = formatter.format_task_list(resp["data"], header=f"Upcoming ({resp['meta']['count']})")
+-    else:
+-        text = f"Error: {resp.get('error', 'unknown')}"
+-    await _send(update, text)
+-
+-
+-async def cmd_projects(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+-    _log_user(update)
+-    resp = await _api_get("/projects")
+-    if resp.get("ok"):
+-        text = formatter.format_project_list(resp["data"])
+-    else:
+-        text = f"Error: {resp.get('error', 'unknown')}"
+-    await _send(update, text)
+-
+-
+-async def cmd_areas(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+-    _log_user(update)
+-    resp = await _api_get("/areas")
+-    if resp.get("ok"):
+-        text = formatter.format_area_list(resp["data"])
+-    else:
+-        text = f"Error: {resp.get('error', 'unknown')}"
+-    await _send(update, text)
+-
+-
+-async def cmd_due(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+-    _log_user(update)
+-    from datetime import date
+-    today = date.today().isoformat()
+-    resp = await _api_get("/search/advanced", params={"deadline": today, "status": "incomplete"})
+-    if resp.get("ok"):
+-        text = formatter.format_task_list(resp["data"], header=f"Due today/overdue ({resp['meta']['count']})")
+-    else:
+-        text = f"Error: {resp.get('error', 'unknown')}"
+-    await _send(update, text)
+-
+-
+-async def cmd_recent(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+-    _log_user(update)
+-    resp = await _api_get("/recent", params={"period": "3d"})
+-    if resp.get("ok"):
+-        text = formatter.format_task_list(resp["data"], header=f"Added last 3 days ({resp['meta']['count']})")
+-    else:
+-        text = f"Error: {resp.get('error', 'unknown')}"
+-    await _send(update, text)
+-
+-
+-async def cmd_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+-    _log_user(update)
+-    query = " ".join(context.args or []).strip()
+-    if not query:
+-        await _send(update, "Usage: /search &lt;keyword&gt;")
+-        return
+-    resp = await _api_get("/search", params={"q": query})
+-    if resp.get("ok"):
+-        text = formatter.format_search_results(resp["data"], query)
+-    else:
+-        text = f"Error: {resp.get('error', 'unknown')}"
+-    await _send(update, text)
+-
+-
+-# ---------------------------------------------------------------------------
+-# Natural language handler (Claude agent)
+-# ---------------------------------------------------------------------------
++    await send(update, text)
+ 
+ 
+ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+-    _log_user(update)
+-    user_text = update.message.text or ""
+-    if not user_text.strip():
++    if not await guard(update):
++        return
++    user_text = (update.message.text or "").strip()
++    if not user_text:
+         return
+-
+-    # Show typing indicator
+     await update.message.chat.send_action("typing")
+-
+-    response = await agent.run(user_text)
+-
+-    # Agent returns plain text — send without parse mode to avoid formatting issues
+-    await _send(update, response, parse_mode=None)
+-
+-
+-# ---------------------------------------------------------------------------
+-# Main
+-# ---------------------------------------------------------------------------
++    response = await agent.run(user_text, registry.all_tools(), registry.execute_tool)
++    await send(update, response, parse_mode=None)
+ 
+ 
+ def main() -> None:
+@@ -200,15 +51,11 @@ def main() -> None:
+ 
+     app.add_handler(CommandHandler("start", cmd_help))
+     app.add_handler(CommandHandler("help", cmd_help))
+-    app.add_handler(CommandHandler("today", cmd_today))
+-    app.add_handler(CommandHandler("inbox", cmd_inbox))
+-    app.add_handler(CommandHandler("upcoming", cmd_upcoming))
+-    app.add_handler(CommandHandler("projects", cmd_projects))
+-    app.add_handler(CommandHandler("areas", cmd_areas))
+-    app.add_handler(CommandHandler("due", cmd_due))
+-    app.add_handler(CommandHandler("recent", cmd_recent))
+-    app.add_handler(CommandHandler("search", cmd_search))
++
++    for handler in registry.all_handlers():
++        app.add_handler(handler)
++
+     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+ 
+-    logger.info("Bot starting — polling for updates")
++    logger.info("Alfred starting — polling for updates")
+     app.run_polling(allowed_updates=Update.ALL_TYPES)
+diff --git a/src/config.py b/src/config.py
+index de2b286..73df9ef 100644
+--- a/src/config.py
++++ b/src/config.py
+@@ -8,16 +8,17 @@ class Settings(BaseSettings):
+         extra="ignore",
+     )
+ 
+-    things_agent_api_key: str
++    alfred_api_key: str
+     things_mcp_url: str = "http://127.0.0.1:8100/mcp"
+-    things_agent_host: str = "0.0.0.0"
+-    things_agent_port: int = 8200
++    alfred_host: str = "0.0.0.0"
++    alfred_port: int = 8200
+ 
+     # Bot settings
+     telegram_bot_token: str = ""
+     anthropic_api_key: str = ""
+     claude_model: str = "claude-sonnet-4-20250514"
+-    things_agent_base_url: str = "http://127.0.0.1:8200/api/v1"
++    alfred_base_url: str = "http://127.0.0.1:8200/api/v1"
++    telegram_allowed_user_ids: str = ""  # comma-separated; empty = allow all
+ 
+ 
+ settings = Settings()
+diff --git a/src/main.py b/src/main.py
+index 32eb1f8..123669a 100644
+--- a/src/main.py
++++ b/src/main.py
+@@ -4,9 +4,9 @@ from fastapi.responses import JSONResponse
+ from .routes import router
+ 
+ app = FastAPI(
+-    title="Things Agent API",
+-    description="REST gateway for Things 3 via MCP",
+-    version="0.1.0",
++    title="Alfred API",
++    description="Alfred REST gateway for Things 3 via MCP",
++    version="0.2.0",
+     docs_url="/docs",
+     redoc_url=None,
+ )
+diff --git a/tests/test_routes.py b/tests/test_routes.py
+index 8f97011..bc7c9c8 100644
+--- a/tests/test_routes.py
++++ b/tests/test_routes.py
+@@ -9,7 +9,7 @@ from src.main import app
+ from src.config import settings
+ 
+ client = TestClient(app)
+-AUTH = {"Authorization": f"Bearer {settings.things_agent_api_key}"}
++AUTH = {"Authorization": f"Bearer {settings.alfred_api_key}"}
+ 
+ MOCK_TASKS = [
+     {"title": "Buy milk", "uuid": "abc123", "type": "to_do", "status": "incomplete"}
