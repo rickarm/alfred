@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     claude_model: str = "claude-sonnet-4-20250514"
     things_agent_base_url: str = "http://127.0.0.1:8200/api/v1"
+    # Base URL the skill executor / agent uses to reach Alfred's own REST gateway.
+    # Keep this loopback — the bot and the API run on the same host (the Mac mini).
+    alfred_base_url: str = "http://127.0.0.1:8200/api/v1"
+    # Comma-separated Telegram *user* IDs allowed to use the bot. Empty = allow all.
+    telegram_allowed_user_ids: str = ""
 
     # Sherlock-HQ integration
     sherlock_hq_url: str = "http://127.0.0.1:8300"
