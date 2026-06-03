@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 
 from .routes.things import router as things_router
 from .routes.alert import router as alert_router
+from .routes.agent import router as agent_router
 
 app = FastAPI(
     title="Things Agent API",
@@ -14,6 +15,7 @@ app = FastAPI(
 
 app.include_router(things_router)
 app.include_router(alert_router)
+app.include_router(agent_router)
 
 
 @app.exception_handler(Exception)
