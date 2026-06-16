@@ -1,5 +1,6 @@
 """REST endpoints that map to Things MCP tools."""
 
+import asyncio
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
@@ -53,12 +54,32 @@ async def _tool(tool_name: str, arguments: dict | None = None) -> list[dict]:
 # Health
 # ---------------------------------------------------------------------------
 
+# Readiness probe must answer well within the watcher's ~5s budget, so its MCP
+# round-trip is capped far below the MCP client's own 30/60s timeouts. A slow or
+# unreachable things-mcp then degrades to a fast "not ready" instead of hanging.
+_READY_MCP_TIMEOUT = 3.0
+
 
 @router.get("/health")
 async def health() -> dict:
+    """Liveness probe — confirms the process/event loop is responsive.
+
+    Intentionally does NO downstream calls: it must never hang on a slow
+    dependency (e.g. things-mcp), otherwise the service watcher times out and
+    reports Alfred "down" when only a downstream is degraded. Use
+    ``/health/ready`` to check MCP connectivity.
+    """
+    return _ok({"status": "ok"})
+
+
+@router.get("/health/ready")
+async def health_ready() -> dict:
+    """Readiness probe — verifies MCP connectivity with a short timeout."""
     try:
-        await call_tool("get_today", {})
+        await asyncio.wait_for(call_tool("get_today", {}), timeout=_READY_MCP_TIMEOUT)
         return _ok({"status": "ok", "mcp": "connected"})
+    except TimeoutError:
+        return _err(f"MCP did not respond within {_READY_MCP_TIMEOUT:g}s")
     except Exception as e:
         return _err(f"MCP unreachable: {e}")
 
