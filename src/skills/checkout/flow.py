@@ -1,7 +1,6 @@
 """Checkout conversation flow — end-of-day journal via two-step dialogue."""
 
 import logging
-from datetime import date
 
 from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler
