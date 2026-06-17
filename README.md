@@ -30,12 +30,14 @@ uv run uvicorn src.main:app --host 0.0.0.0 --port 8200
 
 ## API
 
-All endpoints require `Authorization: Bearer <key>` except `/api/v1/health`.
+All endpoints require `Authorization: Bearer <key>` except `/api/v1/health` and
+`/api/v1/health/ready`.
 
 ### Read
 
 ```
-GET /api/v1/health
+GET /api/v1/health        # liveness — fast, no downstream calls
+GET /api/v1/health/ready  # readiness — checks MCP connectivity (short timeout)
 GET /api/v1/lists/{inbox|today|upcoming|anytime|someday|logbook|trash}
 GET /api/v1/projects[?include_items=true]
 GET /api/v1/projects/{uuid}/tasks
