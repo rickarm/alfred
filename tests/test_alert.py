@@ -102,18 +102,42 @@ def test_alert_missing_transition_returns_422():
     assert r.status_code == 422
 
 
-def test_alert_log_tail_truncated_to_20():
-    """log_tail longer than 20 lines should be truncated."""
-    payload = {**VALID_PAYLOAD, "log_tail": [f"line {i}" for i in range(50)]}
+def test_alert_includes_log_path_when_down():
+    """down/degraded alerts show the log-file path instead of inline log lines."""
+    payload = {
+        **VALID_PAYLOAD,
+        "log_file": "/var/log/sherlock-hq/service.log",
+        "log_tail": [f"line {i}" for i in range(50)],
+    }
     mock_http = _mock_telegram_success()
     with patch("src.routes.alert.httpx.AsyncClient", return_value=mock_http):
         r = client.post("/alert", json=payload, headers=AUTH)
 
     assert r.status_code == 200
     sent_text = mock_http.post.call_args[1]["json"]["text"]
-    # Only last 20 lines should appear
-    assert "line 49" in sent_text
-    assert "line 0" not in sent_text
+    # Path is shown; raw log lines are no longer dumped inline.
+    assert "/var/log/sherlock-hq/service.log" in sent_text
+    assert "line 49" not in sent_text
+    # Message stays compact: at most 3 lines.
+    assert len(sent_text.split("\n")) <= 3
+
+
+def test_alert_recovery_has_no_log_path():
+    """A down->ok recovery has no problem, so no log-file line."""
+    payload = {
+        "service": "things-mcp",
+        "transition": "down->ok",
+        "detail": "Recovered",
+        "log_file": "/var/log/things-mcp.log",
+    }
+    mock_http = _mock_telegram_success()
+    with patch("src.routes.alert.httpx.AsyncClient", return_value=mock_http):
+        r = client.post("/alert", json=payload, headers=AUTH)
+
+    assert r.status_code == 200
+    sent_text = mock_http.post.call_args[1]["json"]["text"]
+    assert "📄" not in sent_text
+    assert len(sent_text.split("\n")) <= 3
 
 
 def test_alert_formats_transition_message():

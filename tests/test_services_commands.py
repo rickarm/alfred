@@ -158,6 +158,45 @@ async def test_status_known_service():
 
 
 @pytest.mark.asyncio
+async def test_status_down_service_shows_log_path():
+    update = _make_update(RICK_ID)
+    ctx = _make_context("things-export")
+
+    svc_response = MagicMock()
+    svc_response.status_code = 200
+    svc_response.json.return_value = {
+        "name": "things-export",
+        "status": "down",
+        "detail": "no snapshot files",
+        "consecutive_failures": 3,
+        "log_file": "/var/log/things-export.log",
+    }
+    svc_response.raise_for_status = MagicMock()
+
+    client = MagicMock()
+    client.__aenter__ = AsyncMock(return_value=client)
+    client.__aexit__ = AsyncMock(return_value=False)
+    client.get = AsyncMock(return_value=svc_response)
+
+    with patch("src.commands.services.settings") as mock_settings, patch(
+        "src.commands.services.httpx.AsyncClient", return_value=client
+    ):
+        mock_settings.rick_chat_id = RICK_ID
+        mock_settings.sherlock_hq_url = "http://localhost:8300"
+        mock_settings.sherlock_dashboard_token = "tok"
+        await cmd_status(update, ctx)
+
+    update.message.reply_text.assert_called_once()
+    text = update.message.reply_text.call_args[0][0]
+    assert "🔴" in text
+    assert "/var/log/things-export.log" in text
+    assert "no snapshot files" in text
+    # ≤3 lines, and only one Sherlock-HQ call (no separate log fetch).
+    assert len(text.split("\n")) <= 3
+    assert client.get.call_count == 1
+
+
+@pytest.mark.asyncio
 async def test_status_rejects_unauthorized():
     update = _make_update(OTHER_ID)
     with patch("src.commands.services.settings") as mock_settings:

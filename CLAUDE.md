@@ -92,7 +92,7 @@ rest of `/api/v1`.
 All service commands only respond to `RICK_CHAT_ID`. Commands call Sherlock-HQ (`http://127.0.0.1:8300` by default).
 
 - `/services` — List all services with status icons and counts
-- `/status <name>` — Detail for one service + last 10 log lines (404 reply if unknown)
+- `/status <name>` — Compact one-service status (≤3 lines); when down/degraded it adds the log-file path instead of dumping log lines (404 reply if unknown). Use `/logs` for lines.
 - `/restart <name>` — Restart a service group; replies with per-member exit codes
 - `/logs <name> [N]` — Last N log lines (default 50, max 200; 404 reply if unknown)
 
