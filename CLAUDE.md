@@ -99,7 +99,7 @@ All service commands only respond to `RICK_CHAT_ID`. Commands call Sherlock-HQ (
 ## Environment
 
 `.env` file (copy from `.env.example`):
-- `ALFRED_API_KEY` — Bearer token for API auth (all endpoints except /health)
+- `THINGS_AGENT_API_KEY` — Bearer token for API auth (all endpoints except /health; required)
 - `THINGS_MCP_URL` — MCP server URL (default: http://127.0.0.1:8100)
 - `TELEGRAM_BOT_TOKEN` — Telegram Bot API token
 - `ANTHROPIC_API_KEY` — Claude API key

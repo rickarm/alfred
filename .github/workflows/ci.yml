@@ -6,22 +6,14 @@ on:
     branches: [main]
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-
-      - name: Install dependencies
-        run: uv sync --extra test --frozen
-
-      - name: Run tests
-        env:
-          # Required field in config.py; the suite mocks all external calls,
-          # so this is a throwaway value, not a real secret.
-          THINGS_AGENT_API_KEY: ci-test-key
-        run: uv run --extra test python -m pytest -q
+  ci:
+    # Canonical pipeline lives in rickarm/ci-shared (lint + compile smoke + tests).
+    # Change CI behaviour there, not here.
+    uses: rickarm/ci-shared/.github/workflows/python-ci.yml@main
+    with:
+      # Test deps (pytest-asyncio, …) live in the [test] extra, not the default group.
+      all-extras: true
+      # config.Settings requires things_agent_api_key at import time; the suite mocks
+      # all external calls, so this is a throwaway value, not a real secret.
+      test-env: |
+        THINGS_AGENT_API_KEY=ci-test-key
