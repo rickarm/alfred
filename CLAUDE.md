@@ -113,7 +113,10 @@ All service commands only respond to `RICK_CHAT_ID`. Commands call Sherlock-HQ (
 ## Gotchas
 
 - MCP server (things-mcp) must be running on port 8100 as a separate process
-- API requires Bearer token auth on all endpoints except `/health`
+- **Merged ≠ deployed:** production runs plain `uvicorn` via launchd (no `--reload`). Code from a merged PR is NOT live until `make restart`. Symptom: a merged change (e.g. shorter Telegram messages) doesn't show up — check the running process start time vs. the merge time before debugging the code.
+- API requires Bearer token auth on all endpoints except the health check
+- Health endpoint is `/api/v1/health` (the things router has `prefix="/api/v1"`) — there is NO bare `/health` (returns 404). `make health` and the service watcher use the prefixed path.
+- Fire a test alert: `curl -X POST http://127.0.0.1:8200/alert -H "Authorization: Bearer $THINGS_AGENT_API_KEY" -d '{"service":"test","transition":"ok->degraded","detail":"...","log_file":"/path"}'`. `AlertPayload` fields: `service, transition, detail, log_file, log_tail` (log_tail accepted but no longer rendered). `system-monitor` sends alerts via this same `/alert` endpoint (direct-Telegram fallback), so Alfred's rendering governs those messages too.
 - Uses UV package manager, not pip
 - launchd plist is `com.rickarmbrust.things-agent` (not `alfred`)
 - Port 8200 chosen to avoid conflict with sherlock-hq (8300) and things-mcp (8100)
