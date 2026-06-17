@@ -31,6 +31,15 @@ def _esc(value) -> str:
     return html.escape(str(value)) if value is not None else ""
 
 
+def _log_path(svc: dict) -> str:
+    """Pull the on-disk log-file path from a service payload, if provided."""
+    for key in ("log_file", "log_path", "logfile", "log"):
+        value = svc.get(key)
+        if value:
+            return str(value)
+    return ""
+
+
 async def cmd_services(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not _is_authorized(update):
         return
@@ -93,31 +102,20 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         await update.message.reply_text(f"Error reaching Sherlock-HQ: {e}")
         return
 
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            log_r = await client.get(
-                f"{settings.sherlock_hq_url}/api/services/{name}/log",
-                headers=_headers(),
-                params={"tail": "10"},
-            )
-            log_data = log_r.json() if log_r.status_code == 200 else []
-    except Exception:
-        log_data = []
+    status = svc.get("status", "unknown")
+    icon = _STATUS_ICON.get(status, "⚫")
+    head = f"{icon} <b>{_esc(svc.get('name', name))}</b> — {_esc(status)}"
+    fails = svc.get("consecutive_failures", 0)
+    if fails:
+        head += f" ({_esc(fails)} consecutive)"
 
-    log_lines = log_data if isinstance(log_data, list) else log_data.get("lines", [])
-    icon = _STATUS_ICON.get(svc.get("status", "down"), "⚫")
-    parts = [
-        f"{icon} <b>{_esc(svc.get('name', name))}</b> — {_esc(svc.get('status', 'unknown'))}",
-        f"Detail: {_esc(svc.get('detail', ''))}",
-        f"Last OK: {_esc(svc.get('last_ok', 'never'))}",
-        f"Last fail: {_esc(svc.get('last_fail', 'never'))}",
-        f"Consecutive failures: {_esc(svc.get('consecutive_failures', 0))}",
-    ]
-    if log_lines:
-        parts.append("\nLast 10 log lines:")
-        parts.append(
-            "<pre>" + "\n".join(_esc(line) for line in log_lines[-10:]) + "</pre>"
-        )
+    # ≤3 lines: status, detail, and a log-file pointer when something is wrong.
+    parts = [head]
+    if svc.get("detail"):
+        parts.append(_esc(svc.get("detail")))
+    if status in ("down", "degraded"):
+        log_path = _log_path(svc)
+        parts.append(f"📄 <code>{_esc(log_path)}</code>" if log_path else "📄 log path unavailable")
 
     await update.message.reply_text("\n".join(parts), parse_mode="HTML")
 

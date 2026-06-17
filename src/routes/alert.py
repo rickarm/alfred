@@ -29,7 +29,8 @@ class AlertPayload(BaseModel):
     service: str
     transition: str
     detail: str = ""
-    log_tail: list[str] = []
+    log_file: str = ""
+    log_tail: list[str] = []  # accepted for backwards compat; no longer rendered inline
 
 
 async def _send_telegram(text: str) -> dict:
@@ -56,17 +57,13 @@ async def post_alert(_: Auth, body: AlertPayload) -> dict:
     icon = _TRANSITION_ICON.get(body.transition, "⚠️")
     label = to_state.upper() if to_state else body.transition.upper()
 
-    lines = [
-        f"{icon} {label}: {body.service}",
-        f"{from_state} → {to_state}" if to_state else body.transition,
-    ]
-    if body.detail:
-        lines.append(body.detail)
-
-    truncated_tail = body.log_tail[-20:]
-    if truncated_tail:
-        lines.append("\nLast log lines:")
-        lines.append("<pre>" + "\n".join(truncated_tail) + "</pre>")
+    # ≤3 lines: headline, detail/transition, and a log-file pointer when down/degraded.
+    lines = [f"{icon} {label}: {body.service}"]
+    lines.append(body.detail if body.detail else f"{from_state} → {to_state}")
+    if to_state in ("down", "degraded"):
+        lines.append(
+            f"📄 <code>{body.log_file}</code>" if body.log_file else "📄 log path unavailable"
+        )
 
     text = "\n".join(lines)
     return await _send_telegram(text)
