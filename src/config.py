@@ -29,5 +29,13 @@ class Settings(BaseSettings):
     sherlock_dashboard_token: str = ""
     rick_chat_id: int = 0
 
+    # Auto-filing GitHub issues for true outages (issue #15). Opt-in.
+    github_autofile_enabled: bool = False
+    github_token: str = ""  # PAT / app token with `issues:write` on the target repos
+    github_api_url: str = "https://api.github.com"
+    github_default_repo: str = ""  # fallback "owner/repo" when a service has no mapping
+    github_service_repos: str = ""  # "service=owner/repo,other=owner/repo2"
+    github_issue_labels: str = "bug,claude"  # comma-separated labels for filed issues
+
 
 settings = Settings()

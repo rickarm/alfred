@@ -140,6 +140,17 @@ def test_alert_recovery_has_no_log_path():
     assert len(sent_text.split("\n")) <= 3
 
 
+def test_alert_attaches_issue_result_disabled_by_default():
+    """Auto-filing is opt-in; the alert still reports its (skipped) status."""
+    mock_http = _mock_telegram_success()
+    with patch("src.routes.alert.httpx.AsyncClient", return_value=mock_http):
+        r = client.post("/alert", json=VALID_PAYLOAD, headers=AUTH)
+
+    assert r.status_code == 200
+    body = r.json()
+    assert body["issue"] == {"filed": False, "reason": "disabled"}
+
+
 def test_alert_formats_transition_message():
     payload = {
         "service": "things-mcp",

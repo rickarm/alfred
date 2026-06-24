@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from ..auth import require_api_key
 from ..config import settings
+from ..github_issues import maybe_file_issue
 
 logger = logging.getLogger(__name__)
 
@@ -66,4 +67,9 @@ async def post_alert(_: Auth, body: AlertPayload) -> dict:
         )
 
     text = "\n".join(lines)
-    return await _send_telegram(text)
+    result = await _send_telegram(text)
+
+    # Best-effort: file a GitHub issue for true outages. This never raises and never
+    # blocks the alert — a filing failure leaves the Telegram result untouched.
+    result["issue"] = await maybe_file_issue(body)
+    return result
