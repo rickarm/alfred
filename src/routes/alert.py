@@ -50,6 +50,9 @@ class _CooldownEntry:
     last_alerted_at: float   # time.monotonic(); 0.0 = never alerted
     last_alerted_state: str  # to_state at the time of the last fired alert
     tracked_state: str       # most recent to_state received (may differ from alerted)
+    # Grouped services only: roster of members currently down/degraded. Used to
+    # hold a grouped recovery until *every* member is healthy again.
+    unhealthy_members: frozenset[str] = frozenset()
 
 
 class AlertFilter:
@@ -74,10 +77,38 @@ class AlertFilter:
         last_alerted_state = entry.last_alerted_state if entry else from_state
         last_alerted_at = entry.last_alerted_at if entry else 0.0
 
+        # Per-group roster of members currently down/degraded. Members are
+        # independent services that fail and recover on their own schedule, so a
+        # grouped recovery must wait until the roster empties — otherwise one
+        # member recovering would send a false "all clear" while a sibling is
+        # still down. (Standalone services never touch this roster.)
+        unhealthy = set(entry.unhealthy_members) if entry else set()
+        if is_grouped:
+            if to_state in ("down", "degraded"):
+                unhealthy.add(service)
+            elif to_state == "ok":
+                unhealthy.discard(service)
+
         if to_state == "ok":
-            # Info: only alert if the most-recently-tracked state was "down".
-            fire = tracked_state == "down"
-            reason = "recovery from down" if fire else f"recovery from {tracked_state!r} suppressed"
+            if is_grouped:
+                # Fire only the recovery that clears the last unhealthy member,
+                # and only when the group had actually alerted a `down` (a
+                # degraded-only group recovering is treated as routine, matching
+                # the standalone "recover only from down" rule).
+                fire = last_alerted_state == "down" and not unhealthy
+                reason = (
+                    "group fully recovered"
+                    if fire
+                    else f"grouped recovery held (unhealthy={sorted(unhealthy)})"
+                )
+            else:
+                # Info: only alert if the most-recently-tracked state was "down".
+                fire = tracked_state == "down"
+                reason = (
+                    "recovery from down"
+                    if fire
+                    else f"recovery from {tracked_state!r} suppressed"
+                )
 
         elif to_state == "down" and not is_grouped:
             # Critical for standalone services: always fire immediately.
@@ -111,6 +142,7 @@ class AlertFilter:
             last_alerted_at=time.monotonic() if fire else last_alerted_at,
             last_alerted_state=to_state if fire else last_alerted_state,
             tracked_state=to_state,
+            unhealthy_members=frozenset(unhealthy),
         )
         return fire, reason
 

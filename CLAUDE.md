@@ -96,6 +96,36 @@ All service commands only respond to `RICK_CHAT_ID`. Commands call Sherlock-HQ (
 - `/restart <name>` — Restart a service group; replies with per-member exit codes
 - `/logs <name> [N]` — Last N log lines (default 50, max 200; 404 reply if unknown)
 
+## Alert noise filtering (`POST /alert`)
+
+`src/routes/alert.py` runs every incoming transition through `AlertFilter.should_alert()`
+before sending Telegram. Severity is **inferred from the transition** (Alfred decides; the
+caller does not send a severity field). Suppressed alerts are logged at INFO and return
+`{"ok": true, "suppressed": true, "reason": "..."}` so the watcher sees HTTP 200 and never
+retries. State is **in-memory**, so a `make restart` resets cooldowns (acceptable — a restart
+is intentional, and `→down` on standalone services always fires anyway).
+
+**Alert-worthy threshold (what actually pages Rick):**
+
+| Transition | Service kind | Behavior |
+|---|---|---|
+| `→down` | standalone | **Critical** — always fires immediately |
+| `→down` | grouped | First member fires; siblings share the group cooldown (deduped) |
+| `→degraded` | any | **Warning** — fires once, then 30-min per-service cooldown; re-fires early only if state *worsens* vs. the last alerted state |
+| `→ok` | standalone | **Info** — fires only if the tracked state was `down` (degraded blips don't page) |
+| `→ok` | grouped | Fires once, only when the **last** unhealthy member clears and the group had alerted a `down` |
+| any | silent service | Always suppressed (logged only) |
+
+- **Silent services** (`_SILENT_SERVICES`): `checkout-server`, `things-export`, `repo-sync`,
+  `sherlock-hq` — never alert. Match is **exact / case-sensitive** against the watcher's
+  service string; if `services-check.sh` ever changes casing, silencing fails silently.
+- **Service groups** (`_SERVICE_GROUPS`): `openclaw`, `openclaw-agent`,
+  `openclaw-functional-health` collapse under the `openclaw` key — they share one cooldown
+  (so a wave of related downs is one alert) and one recovery (held until *every* member is
+  healthy, so a single member recovering can't send a false "all clear").
+- **Cooldown window**: `_COOLDOWN_SECONDS` (30 min). To add a silent service or group, edit
+  the module-level frozenset/dict in `alert.py`.
+
 ## Environment
 
 `.env` file (copy from `.env.example`):

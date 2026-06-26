@@ -346,3 +346,58 @@ def test_openclaw_group_subsequent_alerts_suppressed():
         )
     assert r3.json().get("suppressed") is True
     mock_http3.post.assert_not_called()
+
+
+def _post(service: str, transition: str) -> dict:
+    """Helper: POST one alert with a fresh telegram mock; return (json, mock)."""
+    mock_http = _mock_telegram_success()
+    with patch("src.routes.alert.httpx.AsyncClient", return_value=mock_http):
+        r = client.post(
+            "/alert",
+            json={"service": service, "transition": transition, "detail": "x"},
+            headers=AUTH,
+        )
+    return r.json(), mock_http
+
+
+def test_grouped_recovery_held_until_all_members_healthy():
+    """A grouped recovery must not fire while a sibling member is still down.
+
+    Two openclaw members go down (one alert), then recover one at a time. The
+    first member's recovery is held back; only the recovery that clears the last
+    unhealthy member fires the single 'all clear'.
+    """
+    # Member A down → fires the one group alert.
+    body, http = _post("openclaw-agent", "ok->down")
+    assert "suppressed" not in body
+    http.post.assert_called_once()
+
+    # Member B down → suppressed (group already alerted).
+    body, http = _post("openclaw-functional-health", "ok->down")
+    assert body.get("suppressed") is True
+    http.post.assert_not_called()
+
+    # Member A recovers, but B is still down → recovery held, no false all-clear.
+    body, http = _post("openclaw-agent", "down->ok")
+    assert body.get("suppressed") is True
+    http.post.assert_not_called()
+
+    # Member B recovers → roster empties → single recovery fires.
+    body, http = _post("openclaw-functional-health", "down->ok")
+    assert "suppressed" not in body
+    http.post.assert_called_once()
+    sent_text = http.post.call_args[1]["json"]["text"]
+    assert "openclaw" in sent_text
+    assert "🟢" in sent_text
+
+
+def test_grouped_degraded_only_recovery_is_routine():
+    """A group that only ever degraded (never down) recovering is treated as routine."""
+    # Degraded → fires the warning.
+    body, _ = _post("openclaw", "ok->degraded")
+    assert "suppressed" not in body
+
+    # Recovery from degraded-only → suppressed (matches 'recover only from down').
+    body, http = _post("openclaw", "degraded->ok")
+    assert body.get("suppressed") is True
+    http.post.assert_not_called()
