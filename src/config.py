@@ -1,3 +1,4 @@
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -8,7 +9,12 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    things_agent_api_key: str
+    # Secrets arrive in the process env (the launchd wrapper injects the
+    # 1Password "infra-alerts" Environment, whose variable is ALFRED_API_KEY);
+    # THINGS_AGENT_API_KEY is the historical name and still wins when both are set.
+    things_agent_api_key: str = Field(
+        validation_alias=AliasChoices("THINGS_AGENT_API_KEY", "ALFRED_API_KEY")
+    )
     things_mcp_url: str = "http://127.0.0.1:8100/mcp"
     things_agent_host: str = "0.0.0.0"
     things_agent_port: int = 8200

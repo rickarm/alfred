@@ -128,8 +128,12 @@ is intentional, and `→down` on standalone services always fires anyway).
 
 ## Environment
 
-`.env` file (copy from `.env.example`):
-- `THINGS_AGENT_API_KEY` — Bearer token for API auth (all endpoints except /health; required)
+Secrets arrive in the process env: under launchd, `~/scripts/wrappers/alfred.sh` injects the
+1Password `infra-alerts` Environment (`ALFRED_API_KEY`, `TELEGRAM_BOT_TOKEN`, `ANTHROPIC_API_KEY`,
+`SHERLOCK_DASHBOARD_TOKEN`) through `op-run.sh`; for a dev shell, export them or run under
+`~/scripts/wrappers/op-run.sh infra-alerts -- uv run ...`. `.env` (copy from `.env.example`)
+holds non-secret config only.
+- `THINGS_AGENT_API_KEY` — Bearer token for API auth (all endpoints except /health; required). `ALFRED_API_KEY` is accepted as an alias (the Environment's name for it)
 - `THINGS_MCP_URL` — MCP server URL (default: http://127.0.0.1:8100)
 - `TELEGRAM_BOT_TOKEN` — Telegram Bot API token
 - `ANTHROPIC_API_KEY` — Claude API key
