@@ -17,8 +17,9 @@ Things 3 (macOS app)
 ## Setup
 
 ```bash
-cp .env.example .env
-# Edit .env with your keys
+# Secrets are not kept in .env: the launchd wrapper injects them into the
+# process environment from a password manager at start-up.
+# For local development, export the variables in .env.example yourself.
 uv sync
 uv run uvicorn src.main:app --host 0.0.0.0 --port 8200
 ```
